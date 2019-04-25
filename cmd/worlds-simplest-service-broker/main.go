@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/cloudfoundry-community/worlds-simplest-service-broker/pkg/broker"
+	"github.com/cloudfoundry-community/worlds-simplest-service-broker/broker"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"

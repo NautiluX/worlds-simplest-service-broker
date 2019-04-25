@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
 
 	"code.cloudfoundry.org/lager"
 	"github.com/pivotal-cf/brokerapi"
 )
 
 type BrokerImpl struct {
-	Logger    lager.Logger
-	Config    Config
-	Instances map[string]brokerapi.GetInstanceDetailsSpec
-	Bindings  map[string]brokerapi.GetBindingSpec
+	Logger                lager.Logger
+	Config                Config
+	Instances             map[string]brokerapi.GetInstanceDetailsSpec
+	Bindings              map[string]brokerapi.GetBindingSpec
+	NextUnusedCredentials int
 }
 
 type Config struct {
@@ -114,15 +116,24 @@ func (bkr *BrokerImpl) GetInstance(ctx context.Context, instanceID string) (spec
 	return
 }
 
+func (bkr *BrokerImpl) GetCredentials() interface{} {
+	if reflect.TypeOf(bkr.Config.Credentials).Kind() != reflect.Slice {
+		return bkr.Config.Credentials
+	}
+	creds := bkr.Config.Credentials.([]interface{})[bkr.NextUnusedCredentials]
+	bkr.NextUnusedCredentials = bkr.NextUnusedCredentials + 1
+	return creds
+}
 func (bkr *BrokerImpl) Bind(ctx context.Context, instanceID string, bindingID string, details brokerapi.BindDetails, asyncAllowed bool) (brokerapi.Binding, error) {
 	var parameters interface{}
 	json.Unmarshal(details.GetRawParameters(), &parameters)
+	creds := bkr.GetCredentials()
 	bkr.Bindings[bindingID] = brokerapi.GetBindingSpec{
-		Credentials: bkr.Config.Credentials,
+		Credentials: creds,
 		Parameters:  parameters,
 	}
 	return brokerapi.Binding{
-		Credentials: bkr.Config.Credentials,
+		Credentials: creds,
 	}, nil
 }
 

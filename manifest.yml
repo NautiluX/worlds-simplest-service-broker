@@ -2,15 +2,18 @@ applications:
 - name: my-broker
   disk_quota: 256M
   buildpacks:
-  - go_buildpack
-  stack: cflinuxfs3
+  - https://github.com/cloudfoundry/go-buildpack
+  stack: cflinuxfs2
   env:
+    GOVERSION: go1.12
     GOPACKAGENAME: github.com/cloudfoundry-community/worlds-simplest-service-broker
     GO_INSTALL_PACKAGE_SPEC: github.com/cloudfoundry-community/worlds-simplest-service-broker/cmd/worlds-simplest-service-broker
     BASE_GUID: F55C69BB-032A-4DAD-AAF0-8BB518D1D8F5
-    CREDENTIALS: '{"port": "4000", "host": "1.2.3.4"}'
+    CREDENTIALS: '[{"port": "4000", "host": "1.2.3.4"},{"port": "4001", "host": "1.2.3.5"}]'
     SERVICE_NAME: myservice
     SERVICE_PLAN_NAME: shared
+    AUTH_USER: broker
+    AUTH_PASSWORD: broker
     TAGS: simple,shared
   instances: 1
   memory: 128M
