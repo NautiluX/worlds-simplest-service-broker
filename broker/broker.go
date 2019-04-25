@@ -17,6 +17,7 @@ type BrokerImpl struct {
 	Instances             map[string]brokerapi.GetInstanceDetailsSpec
 	Bindings              map[string]brokerapi.GetBindingSpec
 	NextUnusedCredentials int
+	InstanceCredentials   map[string]interface{}
 }
 
 type Config struct {
@@ -39,9 +40,10 @@ func NewBrokerImpl(logger lager.Logger) (bkr *BrokerImpl) {
 	fmt.Printf("Credentials: %v\n", credentials)
 
 	return &BrokerImpl{
-		Logger:    logger,
-		Instances: map[string]brokerapi.GetInstanceDetailsSpec{},
-		Bindings:  map[string]brokerapi.GetBindingSpec{},
+		Logger:              logger,
+		Instances:           map[string]brokerapi.GetInstanceDetailsSpec{},
+		Bindings:            map[string]brokerapi.GetBindingSpec{},
+		InstanceCredentials: make(map[string]interface{}),
 		Config: Config{
 			BaseGUID:    getEnvWithDefault("BASE_GUID", "29140B3F-0E69-4C7E-8A35"),
 			ServiceName: getEnvWithDefault("SERVICE_NAME", "some-service-name"),
@@ -97,9 +99,20 @@ func (bkr *BrokerImpl) Provision(ctx context.Context, instanceID string, details
 		PlanID:     details.PlanID,
 		Parameters: parameters,
 	}
+	bkr.InstanceCredentials[instanceID] = bkr.GetFreeCredentials()
+
 	return brokerapi.ProvisionedServiceSpec{
 		IsAsync: bkr.Config.FakeAsync,
 	}, nil
+}
+
+func (bkr *BrokerImpl) GetFreeCredentials() interface{} {
+	if reflect.TypeOf(bkr.Config.Credentials).Kind() != reflect.Slice {
+		return bkr.Config.Credentials
+	}
+	creds := bkr.Config.Credentials.([]interface{})[bkr.NextUnusedCredentials]
+	bkr.NextUnusedCredentials = (bkr.NextUnusedCredentials + 1) % len(bkr.Config.Credentials.([]interface{}))
+	return creds
 }
 
 func (bkr *BrokerImpl) Deprovision(ctx context.Context, instanceID string, details brokerapi.DeprovisionDetails, asyncAllowed bool) (brokerapi.DeprovisionServiceSpec, error) {
@@ -116,24 +129,15 @@ func (bkr *BrokerImpl) GetInstance(ctx context.Context, instanceID string) (spec
 	return
 }
 
-func (bkr *BrokerImpl) GetCredentials() interface{} {
-	if reflect.TypeOf(bkr.Config.Credentials).Kind() != reflect.Slice {
-		return bkr.Config.Credentials
-	}
-	creds := bkr.Config.Credentials.([]interface{})[bkr.NextUnusedCredentials]
-	bkr.NextUnusedCredentials = bkr.NextUnusedCredentials + 1
-	return creds
-}
 func (bkr *BrokerImpl) Bind(ctx context.Context, instanceID string, bindingID string, details brokerapi.BindDetails, asyncAllowed bool) (brokerapi.Binding, error) {
 	var parameters interface{}
 	json.Unmarshal(details.GetRawParameters(), &parameters)
-	creds := bkr.GetCredentials()
 	bkr.Bindings[bindingID] = brokerapi.GetBindingSpec{
-		Credentials: creds,
+		Credentials: bkr.InstanceCredentials[instanceID],
 		Parameters:  parameters,
 	}
 	return brokerapi.Binding{
-		Credentials: creds,
+		Credentials: bkr.InstanceCredentials[instanceID],
 	}, nil
 }
 
